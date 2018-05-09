@@ -1,0 +1,635 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!--
+Design by Free CSS Templates
+http://www.freecsstemplates.org
+Released for free under a Creative Commons Attribution 2.5 License
+
+Name       : Breakeven 
+Description: A two-column, fixed-width design with dark color scheme.
+Version    : 1.0
+Released   : 20130509
+
+-->
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>CSC460 - Summer 2013 - Project 3</title>
+        <link href="http://fonts.googleapis.com/css?family=Open+Sans:400,300,600" rel="stylesheet" type="text/css"/>
+        <link href="http://fonts.googleapis.com/css?family=Abel|Satisfy" rel="stylesheet" type="text/css"/>
+        <link href="style.css" media="screen" rel="stylesheet" type="text/css"/>
+        
+        <link href="blackboard.css" media="screen" rel="stylesheet" type="text/css"/>
+    </head>
+    
+    <body>
+        <div id="wrapper">
+            <div id="header-wrapper">
+                <div class="container" id="header">
+                    <div id="logo">
+                        <h1><a href="index.html">CSC460 - Summer 2013</a></h1>
+                    </div>
+                    <div id="menu">
+                        <ul>
+                            <li><a href="index.html">Homepage</a></li>
+                            <li><a href="project1.html">Project 1</a></li>
+                            <li><a href="project2.html">Project 2</a></li>
+                            <li class="current_page_item"><a href="#">Project 3</a></li>
+                            <li><a href="project4.html">Project 4</a></li>
+                            <li><a href="project5.html">Project 5</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div> <!-- end header -->
+            
+            <div id="page">
+                <h1 class="title">Project 3 - RTOS Implementation</h1>
+                
+                <div id="sidebar">
+                    <ul>
+                        <li>
+                            <h2>Table Of Contents</h2>
+                            <ul>
+                                <li><a href="#objective">1.0 Objective</a></li>
+                                <li><a href="#hardware">2.0 Hardware</a></li>
+                                <li><a href="#kernel">3.0 Kernel</a></li>
+                                <li><a href="#tasks">4.0 Tasks</a></li>
+                                <li><a href="#scheduling">5.0 Scheduling</a></li>
+                                <li><a href="#events">6.0 Events</a></li>
+                                <li><a href="#errors">7.0 Errors</a></li>
+                                <li><a href="#testing">8.0 Testing</a></li>
+                                <li><a href="#obstacles">9.0 Obstacles</a></li>
+                                <li><a href="#appendix">10.0 Appendix</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div> <!-- end #sidebar -->
+                
+                <div id="content">
+                    <div class="entry">
+                        <h1 id="objective">1.0 Objective</h1>
+                        <p>The goal of project 3 is to implement a real-time operating system (RTOS) according to a provided API. The RTOS will be able to run tasks at three scheduling levels: periodic, round robin, and system. Test cases will also be created to ensure the correct operation of the RTOS.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="hardware">2.0 Hardware</h1>
+                        <p>The RTOS was written for the MEGA-1284P Xplained board. Information on this board is available from the <a href="project2.html#hardware">project 2 report</a>.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="kernel">3.0 Kernel</h1>
+                        
+                        <h2>3.1 Initialization</h2>
+                        <p>The first function that must run is <code>OS_Init()</code>, which initializes the RTOS. The user application running on top of the RTOS implements <code>main()</code>, which creates required tasks. To make <code>OS_Init()</code> run first instead of <code>main()</code>, the <code>crt0.S</code> file is provided. This file is adapted from <code><a href="http://svn.savannah.nongnu.org/viewvc/*checkout*/trunk/avr-libc/crt1/gcrt1.S?revision=2376&root=avr-libc">gcrt1.S</a></code>, provided by <code>avr-gcc</code>. The modified section of <code>crt0.S</code> (lines 288-295) is shown below.</p>
+                        
+                        <pre><code data-language="avr-asm">    .section .init9,"ax",@progbits
+#ifdef __AVR_ASM_ONLY__
+        XJMP    OS_Init
+#else   /* !__AVR_ASM_ONLY__ */
+        XCALL   OS_Init
+        XJMP    exit
+#endif  /* __AVR_ASM_ONLY__ */</code></pre>
+
+                        <p>The changed instructions above make the compiled application jump to <code>OS_Init()</code> instead of <code>main()</code> on startup. To use <code>avr-gcc</code> to compile the application using <code>crt0.S</code>, the <code>-nostartfiles</code> option is required when linking, as shown below.</p>
+                        
+                        <pre><code data-language>avr-gcc -nostartfiles -mmcu=atmega1284p -o project3_RTOS.elf crt0.o main.o os.o</code></pre>
+                        
+                        <p><code>gcrt1.s</code> also requires <code><a href="http://svn.savannah.nongnu.org/viewvc/*checkout*/trunk/avr-libc/common/macros.inc?revision=2275&root=avr-libc">macros.inc</a></code>, also available from <code>avr-gcc</code>, which is included in project 3 unmodified.</p>
+                        
+                        <p>The actual <code>OS_Init()</code> function is responsible for setting up the RTOS. As part of initialization, it completes the following tasks:</p>
+                        <ol>
+                            <li>Initialize task descriptors and queues</li>
+                            <li>Create the idle task</li>
+                            <li>Call the application's <code>main()</code> function</li>
+                            <li>Configure and start the system timer</li>
+                            <li>Enter the main kernel loop</li>
+                        </ol>
+                        
+                        <p><code>main()</code> is not created as a system task like in other RTOS implementations so that absolute periodic scheduling can be used. If a periodic task is created with offset 0, and <code>main()</code> is a system task, <code>main()</code> will always execute first, and the periodic task will never be able to start at tick 0. The timer is initialized after <code>main()</code> has been called so that the created tasks start executing at tick 0. The RTOS can also support an extra task because <code>main()</code> is not taking up a task descriptor as a system task. See <a href="#tasks">section 4</a> for more information on tasks.</p>
+                        
+                        <p>Once the RTOS has been initialized, it enters the main kernel loop, shown below. The main loop continually handles requests, then switches into the context of the current task.</p>
+                        <pre><code data-language="c">static void kernel_main_loop() {
+    for (;;) {
+        // Handles any requests made by the process (if any)
+        kernel_handle_request();
+
+        // Exits the kernel, switching contexts to the next process
+        exit_kernel();
+        // Process returns to here.
+    }
+}</code></pre>
+
+                        <h2>3.2 Context Switching</h2>
+                        
+                        <p>Context switching is handled by two functions, listed below: <code>exit_kernel()</code> and <code>enter_kernel()</code>. The first is called by the kernel to switch context back into the currently running task. The second is called to invoke the kernel to resolve a kernel request, such as scheduling.</p>
+                        
+                        <p>The <code>exit_kernel()</code> function is the first of the two to be called, since the RTOS begins in kernel context. This function switches into the context of the task that is currently scheduled by saving the kernel context, including general purpose registers as well as the status register (SREG) and the stack pointer (SP), then restoring the task's context. It then manually uses the <code>ret</code> instruction to pop off the next two bytes on the stack, which form the address the task function should resume execution at. The macros used to restore context are explained in the following section.</p>
+                        
+                        <pre><code data-language="c">static void exit_kernel(void) {
+    // The PC was pushed on the stack with the call to this function.
+    // Now push on the I/O registers and the SREG as well.
+    SAVE_CTX();
+
+    //The last piece of the context is the SP. Save it to a variable.
+    kernel_sp = ((uint16_t) *(&SP + 1) << 8) | ((uint16_t) SP );
+
+    // Set the SP bytes manually, since setting the SP directly doesn't work
+    SP = (uint8_t) cur_process->sp;
+    *(&SP + 1) = (uint8_t) ((volatile uint16_t) cur_process->sp >> 8);
+
+    // Restore I/O and SREG registers.
+    RESTORE_CTX();
+    /*
+     * Assembly return instruction required since the C-level return expands to assembly
+     * code that restores context, but we do that manually.
+     */
+    asm volatile ("ret\n"::);
+}</pre></code>
+
+                        <p>Tasks that have run before simply have their existing context restored, but new tasks do not have any context. When a new task is created, its stack is initialized so that a valid context can be restored, even though the task has never run. This new stack consists largely of zero values for the general purpose registers, followed by the address of the beginning of the task function. Immediately after this address is the address of the <code>Task_Terminate()</code> method, so that if the task ever returns, it will jump into the termination method. See <a href="#tasks">section 4</a> for more information on tasks.</p>
+
+                        <p>The <code>enter_kernel()</code> function is largely <code>exit_kernel()</code> in reverse, switching from task context to kernel context.</p>
+                        
+                        <pre><code data-language="c">static void enter_kernel(void) {
+    // The PC was pushed on the stack with the call to this function.
+    // Now push on the I/O registers and the SREG as well.
+    SAVE_CTX_TOP();
+    STACK_SREG_SET_I_BIT();
+    SAVE_CTX_BOTTOM();
+
+    cur_process->sp = (uint8_t *) ((((uint16_t) *(&SP + 1) << 8) | (uint16_t) SP ));
+
+    // Restore the kernel's context, SP first.
+    SP = (uint8_t) (kernel_sp);
+    *(&SP + 1) = (uint8_t) ((volatile uint16_t) kernel_sp >> 8);
+
+    // Now restore I/O and SREG registers.
+    RESTORE_CTX();
+
+    /*
+     * Assembly return instruction required since the C-level return expands to assembly
+     * code that restores context, but we do that manually.
+     */
+    asm volatile ("ret\n"::);
+}</code></pre>
+
+                        <h2>3.3 Saving and Restoring Context</h2>
+                        
+                        <p>Saving context for a task consists of pushing all general purpose registers, as well as the status register SREG, onto the stack of the given task. The code below is taken from the XplainedRTOS implementation by Scott Craig, Justin Tanner, and Matt Campbell.</p>
+                        
+                        <p>For the most part, saving context is done by pushing all registers in order. Some special handling is required to store the SREG as well, though. Since the <code>push</code> instruction requires a register argument, SREG cannot be pushed directly. Instead, R31 is pushed first, then SREG is loaded into R31.</p>
+                        
+<pre><code data-language="asm">push   r31           ; save r31 first so we can use r31 to save SREG
+in     r31,__SREG__  ; load SREG into r31
+cli                  ; disable interrupts
+push   r31  ; push r31 (now containing SREG)
+push   r30  ; push the remaining registers
+push   r29
+push   r28
+ ...
+push   r3
+push   r2
+push   r1
+push   r0</pre></code>
+<p class="caption">Saving context</p>
+
+                        <p>If context is saved in a timer interrupt, which means that SREG has its interrupt enable bit set to 0, then this bit is set to 1 in the R31 copy of SREG because interrupts should be enabled when context is restored. To do this, the following instruction is put right before R31 (containing the SREG copy) is pushed onto the stack.</p>
+
+<pre><code data-language="asm">ori    r31, 0x80     ; set the interrupt enable bit (7) in the copy of SREG</code></pre>
+
+                        <p>Restoring context is simply saving context in the reverse order. Recall that SREG will be popped off the stack before R31 though, so we pop into R31 once to retrieve SREG and again to get the actual R31.</p>
+
+<pre><code data-language="asm">pop    r0
+pop    r1
+pop    r2
+pop    r3
+ ...
+pop    r28
+pop    r29
+pop    r30
+pop    r31            ; pop the saved SREG into r31
+out    __SREG__, r31  ; restore the saved SREG
+pop    r31            ; restore the actual r31</code></pre>
+<p class="caption">Restoring context</p>
+
+                        <h2>3.4 Kernel Requests</h2>
+
+                        <p>When tasks need the kernel to perform an operation on their behalf, they set the kernel request code and enter the kernel using <code>enter_kernel()</code>. Valid kernel request codes are listed below.</p>
+                        
+                        <table>
+                            <tr>
+                                <th>Request Code</th>
+                                <th>Description</th>
+                            </tr>
+                            <tr>
+                                <td>K_REQ_NONE</td>
+                                <td>The default case; no request</td>
+                            </tr>
+                            <tr>
+                                <td>K_REQ_TIMER_TICK</td>
+                                <td>Used when the kernel is entered from the timer interrupt, on a tick (5ms)</td>
+                            </tr>
+                            <tr>
+                                <td>K_REQ_TASK_TERMINATE</td>
+                                <td>Used by <code>Task_Terminate()</code> (see <a href="#tasks">section 4</a>)</td>
+                            </tr>
+                            <tr>
+                                <td>K_REQ_TASK_NEXT</td>
+                                <td>Used by <code>Task_Next()</code> (see <a href="#tasks">section 4</a>)</td>
+                            </tr>
+                            <tr>
+                                <td>K_REQ_TASK_WAIT</td>
+                                <td>Used when a task waits on an event (see <a href="#events">section 6</a>)</td>
+                            </tr>
+                            <tr>
+                                <td>K_REQ_TASK_SIGNAL</td>
+                                <td>Used when a task signals an event (see <a href="#events">section 6</a>)</td>
+                            </tr>
+                        </table>
+                        
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="tasks">4.0 Tasks</h1>
+                        <p>The RTOS supports three different task priorities: system, periodic, and round robin, but much of the implementation is level-independent. Task information is stored in task descriptor structs. The RTOS keeps a static pool of these, sized according to the maximum number of tasks.</p>
+                        
+                        <pre><code data-language="c">typedef struct {
+    // Process ID
+    uint8_t pid;
+    // The stack for the process
+    uint8_t stack[MAXSTACK];
+    // Pointer to the HW stack pointer
+    volatile uint8_t *sp;
+    // Type (IDLE, SYSTEM, PERIODIC, or RR)
+    uint8_t type;
+    // Argument passed by the init function
+    int arg;
+    // The current state of the process
+    process_state_t state;
+    // The remaining number of ticks for the process
+    uint8_t ticks_remaining;
+} process_descriptor_t;</code></pre>
+<p class="caption">The task descriptor struct</p>
+
+                        <p>Tasks can be in one of four states, described below. The task state is considered in scheduling decisions, and also when creating or destroying tasks. Descriptors are borrowed from a pool of pre-allocated task descriptors; when a task terminates, its state is set to <code>DEAD</code>, and its descriptor can be reused for a new task.</p>
+                        <pre><code data-language="c">typedef enum {
+    RUNNING, // Process is currently running
+    BLOCKED, // Process is blocked by an event
+    READY,   // Process is ready to run
+    DEAD,    // Process has not yet been allocated and does not have a SP
+} process_state_t;</code></pre>
+<p class="caption">Task states</p>
+
+                        <p>Task descriptors are kept in a static pool of all task descriptors, but specific descriptors are linked together to form queues. Descriptors are wrapped in linked list nodes and strung together.</p>
+                        
+                        <h2>4.1 System Tasks</h2>
+                        <p>System level tasks are reserved for critical functions. They are scheduled by the RTOS in a first-come-first-served manner, and run until finished, or until the task is blocked or yields. A system task cannot be preempted by any other task. System tasks are kept in the system-level task queue that maintains the order for first-come-first-served scheduling.</p>
+                        <p>System tasks are created with <code>Task_Create_System</code>, shown below. The first argument is the task function, and the second is the initial argument to the function. <code>Task_Create_System</code> returns 0 on failure and non-zero on success.</p>
+                        <pre><code data-language="c">int Task_Create_System(void (*f)(void), int arg);</code></pre>
+                        
+                        <h2>4.2 Periodic Tasks</h2>
+                        <p>Periodic tasks are defined by a period, a worst-case execution time, and an offset, all measured in ticks. The period is how often the task should run, the worst-case execution time is how much time to allocate for the task to run, and the offset is how long after boot the task will start its first period. For example, a task with period 10, worst-case execution time 2, and offset 4 will start executing at 4 ticks after boot, and run for (up to) 2 ticks, once every 10 ticks. In ticks, the start times for this task will be 4, 14, 24, 34, etc.</p>
+                        <p>Periodic tasks must stick to their assigned schedules. It is an error if a periodic task exceeds its provided worst-case execution time. Periodic tasks are also unable to wait on events.</p>
+                        
+                        <p>Periodic tasks are created with <code>Task_Create_Period</code>, shown below. The first argument is the task function, and the second is the initial argument to the function, and the remaining three are the period, worst-case execution time, and offset. <code>Task_Create_Period</code> returns 0 on failure and non-zero on success.</p>
+<pre><code data-language="c">int Task_Create_Period(void (*f)(void), int arg, unsigned int period, 
+                       unsigned int wcet, unsigned int start);</code></pre>
+                       
+                       <p>Periodic tasks are more difficult to schedule than other types of tasks because they follow a rigid schedule. To deal with this, all periodic tasks make use of the <code>next_tick</code> field in the task descriptor, which contains the number of the next tick when the task will be ready to execute. Initially, <code>next_tick</code> is set to the task's offset; every time the task executes, the value of <code>next_tick</code> is incremented by the task's period. Periodic tasks are stored in a queue like system tasks, but they are inserted into the queue based on <code>next_tick</code>, with tasks closer to executing at the front. Errors with the periodic task schedule (eg. overlap) are not checked at creation, but at runtime instead.</p>
+                       
+                       <p>Periodic tasks make use of the <code>ticks_remaining</code> field in the task descriptor to track how far they are into their wcet. If a periodic task is still executing when its <code>ticks_remaining</code> hits 0, it has gone over its wcet, and the RTOS triggers an error.</p>
+                        
+                        <h2>4.3 Round Robin Tasks</h2>
+                        <p>Round robin tasks only run when no system or periodic tasks are running. A round robin task gets one quantum, equal to two ticks or 10ms, then the processor is given to the next round robin task and the current task goes on the back of the round robin task queue. If the task is preempted before its time expires, however, it is placed at the front of the queue instead.</p>
+
+                        <p>Round robin tasks are created with <code>Task_Create_RR</code>, shown below. The first argument is the task function, and the second is the initial argument to the function. <code>Task_Create_RR</code> returns 0 on failure and non-zero on success.</p>
+                        <pre><code data-language="c">int Task_Create_RR(void (*f)(void), int arg);</code></pre>
+                        
+                        <p>Round robin tasks are kept on a queue and scheduled as first-come-first-served like system tasks, but only when no other tasks are running, as round robin tasks have the lowest priority. Round robin tasks keep track of how long they have executed using the <code>ticks_remaining</code> field in the task descriptor.  When <code>ticks_remaining</code> drops to zero, the task is moved to the back of the queue. Tasks can be preempted before their quantum is up, so it is important that if a task is preempted after half its quantum, it only gets to execute for the remaining half before going to the back of the queue.</p>
+                        
+                        <h2>4.4 In-Task Kernel Requests</h2>
+                        <p>There are a number of methods the RTOS provides that tasks can call while running.</p>
+                        
+                        <h3>4.4.1 Task_Terminate</h3>
+                        <p>Calling <code>Task_Terminate()</code> disposes of the calling process, freeing up any resources it was using. This method sets the kernel request code to <code>K_REQ_TASK_TERMINATE</code> and enters the kernel, which takes care of the cleanup.</p>
+                        <pre><code data-language="c">void Task_Terminate(void);</code></pre>
+                        
+                        <h3>4.4.2 Task_Next</h3>
+                        <p>When a process calls <code>Tast_Next()</code>, it yields the processor to the next process to be scheduled. This function sets the kernel request to <code>K_REQ_TASK_NEXT</code> and enters the kernel, triggering a scheduling decision. See the <a href="#scheduling">next section</a> for information on scheduling.</p>
+                        <pre><code data-language="c">void Task_Next(void);</code></pre>
+                        
+                        <h3>4.4.3 Task_GetArg</h3>
+                        <p>A process can call <code>Task_GetArg()</code> to retrieve the integer argument that it was created with. This function simply looks up the argument, which is stored inside the task descriptor on creation.</p>
+                        <pre><code data-language="c">int Task_GetArg(void);</code></pre>
+                        
+                        <h2>4.5 Task Control Flow</h2>
+                        <p>The following diagram shows an example of how context switches occur during normal operation of the RTOS. This example includes two tasks: <code>P</code>, a periodic task, and <code>Q</code>, a round robin task. Task <code>P</code> gives up the processor using <code>Task_Next()</code>. Task <code>Q</code> gets scheduled, and later gets interrupted by a timer tick. See <a href="#scheduling">section 5</a> for more information about scheduling.</p>
+                        
+                        <img src="images/project3/msc.png" style="width: 700px" />
+                        <p class="caption">Control Flow Example</p>
+                        
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="scheduling">5.0 Scheduling</h1>
+                        
+                        <h2>5.1 Timer</h2>
+                        
+                        <p>A critical piece of the RTOS is the system timer, which is required for almost all scheduling decisions. <code>TCNT0</code> was chosen for use as the system timer as 8-bit resolution is sufficient for the RTOS requirements.</p>
+                        
+                        <p>The smallest useful time period for the RTOS is 5ms, designated as one tick. The timer must generate interrupts every tick to allow scheduling decisions to be made. <code>TCNT0</code> is an 8-bit timer, so a prescaler of 1024 was used, resulting in exactly 54 timer steps for every 5ms tick.</p>
+                        
+                        <p>Though the RTOS operates on the level of ticks, the system timer actually needs millisecond-resolution to implement the required <code>Now()</code> function. This function returns the number of milliseconds passed since <code>OS_Init()</code> was called by taking into account the number of ticks accumulated as well as the current timer value. Since integers on the Xplained board are only 16 bits, the millisecond count wraps around every 65536 milliseconds.</p>
+                        
+                        <pre><code data-language="c">unsigned int Now();</code></pre>
+
+                        <h2>5.2 Scheduling Decisions</h2>
+                        
+                        <p>Every tick (5ms), when the system timer generates an interrupt, the kernel is entered to make a scheduling decision. Informally, the scheduling process followed by the kernel is as follows. Note that preemption rules and error checks were omitted for brevity.</p>
+                        <img style="width: 600px;" src="images/project3/scheduling_chart.png" />
+                        <p class="caption">Flow Chart for Scheduling Decisions</p>
+                        
+                        <p>The scheduler works at tick-resolution, but some cases require dealing with fractions of ticks. When a task calls <code>Task_Next()</code>, for example, it yields the remainder of its current tick to another process. This fractional tick does not count as a full tick, though, because tasks are guaranteed a minimum number of full ticks (wcet for periodic and 2 for round robin). The next task therefore ends up getting a bit of extra time. This is better than cutting the task short (1.5 ticks instead of 2, for example), and it is the only other reasonable option because of the tick resolution used.</p>
+                        
+                        <p>The scheduler code also recognizes possible errors. If the periodic task at the front of the periodic queue (recall that tasks are sorted by next running time) is ready, and there are more than one periodic tasks in the queue, the scheduler checks if the second periodic task in the queue is ready. If both tasks are ready, this is an error, and the scheduler calls <code>OS_Abort()</code>. Another error the scheduler recognizes is when a periodic task has been pushed over into its next period. If a periodic task is pushed later by a system task and is still executing in its next period, even if it has not violated its worst-case execution time yet, the scheduler triggers an error.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="events">6.0 Events</h1>
+                        
+                        <p>System and round robin tasks can wait on events, which are asynchronous signals that can be used for interprocess communication. Tasks that wait on events become blocked. When an event is triggered, all tasks waiting on it will be resumed. If there are no tasks waiting, the event will be marked with an outstanding occurrence. A task that tries to wait on an event with an outstanding occurrence will not actually wait, but see the stored occurrence and continue. Events can only remember whether they have an outstanding event or not, and cannot remember the number of outstanding occurrences. Also, only one task can wait on a given event at a time.</p>
+
+                        <p>Events are created with <code>Event_Init()</code>, shown below.</p>                        
+                        <pre><code data-language="c">EVENT * Event_Init(void);</code></pre>
+                        
+                        <p>Each event is tracked using a simple struct. These structs are pre-allocated like task descriptors. There are only a limited number of events allocated by the RTOS, so it is an error to create more than MAXEVENT events.</p>
+<pre><code data-language="c">typedef struct event {
+    // The process ID of the waiting process, '-1' if none.
+    int8_t waiting_pid;
+    // True if this event has an outstanding occurrence
+    bool signalled;
+} EVENT;</code></pre>
+                        <p class="caption">The event struct</p>
+
+                        <p>Tasks (except periodic tasks) can wait on an event using <code>Event_Wait</code>. If the event has an outstanding ocurrence, it continues immediately; otherwise, the task becomes blocked, and is not considered for scheduling until woken up by another task signalling the event. Tasks can also use <code>Event_Wait_Next</code> to disregard any outstanding occurrences of the event and wait for the next signal. Both methods use the <code>K_REQ_TASK_WAIT</code> kernel request code and rely on the kernel for the actual work.</p>
+                        <pre><code data-language="c">void Event_Wait(EVENT *e);
+void Event_Wait_Next(EVENT *e);</code></pre>
+                        <p>When a task waits on an event (without an outstanding occurrence), its status is changed to <code>BLOCKED</code> and its PID is saved inside the event struct. The task is also removed from its current task queue and put on a waiting queue, where it is kept until woken up.</p>
+
+                        <p>To signal an event, tasks use <code>Event_Signal</code>. This either unblocks the task waiting on the event if any, or marks the event with an outstanding occurrence. If a task is to be woken up, the blocked task is looked up using the PID stored in the event struct, and its status is set to <code>READY</code>. The task is moved back to the appropriate ready queue. <code>Event_Signal</code> then enters the kernel with request code <code>K_REQ_TASK_SIGNAL</code></p>
+                        <pre><code data-language="c">void Event_Signal(EVENT *e);</code></pre>
+                        
+                        <p>Finally, outstanding event occurences can be cleared using <code>Event_Clear</code>. This function simply sets the <code>signalled</code> field in the event struct to false.</p>
+                        <pre><code data-language="c">void Event_Clear(EVENT *e);</code></pre>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="errors">7.0 Errors</h1>
+                        <p>When the RTOS encounters an unrecoverable error, it sets a global error number and calls <code>OS_Abort()</code>. This method stops the normal operation of the RTOS and enters an infinite loop that blinks <code>LED1</code> a number of times corresponding to the error number. <code>LED3</code> is flashed for one second every cycle to denote that the error code is done. For example, for error number 3, <code>LED1</code> would blink 3 times, followed by <code>LED3</code> for one second, repeated forever. Error codes are listed below with explanations.</p>
+                        
+                        <table>
+                            <tr>
+                                <th>Error Number</th>
+                                <th>Error Code</th>
+                                <th>Description</th>
+                            </tr>
+                            <tr>
+                                <td>0</td>
+                                <td>ERRNO_NO_ERROR</td>
+                                <td>No error; the default value</td>
+                            </tr>
+                            <tr>
+                                <td>1</td>
+                                <td>ERRNO_EXCEEDS_MAX_EVENT</td>
+                                <td>More than MAXEVENT events were created</td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td>ERRNO_PERIODIC_CALLED_WAIT</td>
+                                <td>A periodic task attempted to wait on an event</td>
+                            </tr>
+                            <tr>
+                                <td>3</td>
+                                <td>ERRNO_EXCEEDS_MAX_PROCS</td>
+                                <td>More than MAXPROCESS tasks were created</td>
+                            </tr>
+                            <tr>
+                                <td>4</td>
+                                <td>ERRNO_INVALID_PROC_TYPE</td>
+                                <td>A task was created with an unrecognized type argument</td>
+                            </tr>
+                            <tr>
+                                <td>5</td>
+                                <td>ERRNO_INVALID_KERNEL_REQ</td>
+                                <td>The kernel was invoked to deal with an unrecognized request type</td>
+                            </tr>
+                            <tr>
+                                <td>6</td>
+                                <td>ERRNO_PERIODIC_TASK_OVERLAP</td>
+                                <td>Two periodic tasks had their schedules overlap; or, one periodic task was pushed back so far that it ran over into its next period</td>
+                            </tr>
+                            <tr>
+                                <td>7</td>
+                                <td>ERRNO_PERIODIC_TASK_EXCEEDS_WCET</td>
+                                <td>A periodic task was still executing at the end of its worst-case execution time</td>
+                            </tr>
+                            <tr>
+                                <td>8</td>
+                                <td>ERRNO_MULTIPLE_TASKS_CALLED_WAIT</td>
+                                <td>More than one task attempted to wait on the same event</td>
+                            </tr>
+                            
+                            <tr>
+                                <td>9</td>
+                                <td>ERRNO_UNKNOWN_ERR</td>
+                                <td>An unknown error has occurred, possibly an implementation error</td>
+                            </tr>
+                        </table>
+                        
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="testing">8.0 Testing</h1>
+                        
+                        <h2>8.1 Test Cases</h2>
+                        
+                        <p>Testing of the RTOS was conducted by creating tailored test cases and retrieving a trace of task activity from running the tests. Test cases are listed below, with descriptions.</p>
+
+                        <table>
+                            <tr>
+                                <th style="width: 249px">Test Case File</th>
+                                <th>Description</th>
+                            </tr>
+                            <tr>
+                                <td>test_system.c</td>
+                                <td>Tests that the RTOS correctly schedules system tasks</td>
+                            </tr>
+                            <tr>
+                                <td>test_periodic_task_period.c</td>
+                                <td>Tests that the wcet of a periodic task is stretched accordingly when preempted by a system task</td>
+                            </tr>
+                            <tr>
+                                <td>test_periodic_offsets.c</td>
+                                <td>Tests that the RTOS correctly schedules periodic tasks based on offsets</td>
+                            </tr>
+                            <tr>
+                                <td>test_rr.c</td>
+                                <td>Tests that the RTOS correctly schedules RR tasks</td>
+                            </tr>
+                            <tr>
+                                <td>test_rr_1tick.c</td>
+                                <td>Tests that round robin tasks execute for 2 ticks (one quantum), even when the longest they can run consecutively is 1 tick.</td>
+                            </tr>
+                            <tr>
+                                <td>test_event_sys_periodic.c</td>
+                                <td>Tests that a system task waiting on an event preempts a periodic task when the event is signalled</td>
+                            </tr>
+                            <tr>
+                                <td>test_event_periodic_rr.c</td>
+                                <td>Tests that a round robin task waiting on an event does not preempt a periodic task when the event is signalled</td>
+                            </tr>
+                            <tr>
+                                <td>test_event_wait_next.c</td>
+                                <td>Tests that the <code>Event_Wait_Next</code> method works</td>
+                            </tr>
+                        </table>
+                        
+                        <p>Some test cases were also created to ensure that error conditions trigger correctly. These cases are listed below.</p>
+                        
+                        <table>
+                            <tr>
+                                <th>Test Case File</th>
+                                <th>Description</th>
+                            </tr>
+                            <tr>
+                                <td>test_error_too_many_events.c</td>
+                                <td>Tests that the RTOS generates an error when too many events are created</td>
+                            </tr>
+                            <tr>
+                                <td>test_error_too_many_tasks.c</td>
+                                <td>Tests that the RTOS generates an error when too many tasks are created</td>
+                            </tr>
+                            <tr>
+                                <td>test_error_periodic_overlap.c</td>
+                                <td>Tests that overlapping periodic tasks cause an error</td>
+                            </tr>
+                            <tr>
+                                <td>test_error_periodic_wait.c</td>
+                                <td>Tests that a periodic task waiting on an event causes an error</td>
+                            </tr>
+                            <tr>
+                                <td>test_error_periodic_task_period_overlap.c</td>
+                                <td>Tests that the RTOS generates an error when a system task stops a periodic task from executing in its current period</td>
+                            </tr>
+                        </table>
+                        
+                        <h2>8.2 Tracing</h2>
+                        
+                        <p>A trace library was written expressly for testing and debugging. The trace API consists of three functions; one to add a trace entry, one to get the trace as a string, and one to set an error handler. Adding a trace entry requires specifying a number to identify the calling task and an event, for example whether the task is being entered or exited. The error handler is called whenever the RTOS enters <code>OS_Abort()</code>; this is especially useful when trying to force error cases.</p>
+                        <pre><code data-language="c">// Add a new trace entry
+void add_trace(uint16_t process_number, trace_event event);
+
+// Get the trace formatted as a string
+char * get_trace();
+
+// Set a callback that the RTOS will invoke if OS_Abort is called
+void set_error_handler(void (*funct)(void));</code></pre>
+
+                        <p>A sample test case is shown below which simply tests that system tasks are run in the order they are created. The <code>main()</code> function creates the tasks and prints a debug message indicating the start of the test. It also sets the error handler. In this test cases, there should be no errors, so the error handler just prints "fail" to signal that the test was not successful.</p>
+                        
+                        <p>The <code>task</code> function adds entries to the trace. It retrieves the task's argument, and writes an <code>ENTER</code> event followed by an <code>EXIT</code> event. Once the first four system tasks are complete, the last task executes. This is a special task that retrieves the trace data and compares it to the expected trace. <code>ENTER</code> events are marked by an opening bracket, then the task ID. <code>EXIT</code> events are marked by the task ID followed by a closing bracket. The correct trace in the sample test case therefore means that task 0 started and completed, then task 1 started and completed, etc. If task 0 were to be preempted by task 1 before completing, the trace might look like <code>(0,(1,1),0)</code>.</p>
+                        
+                        <pre><code data-language="c">int count = 0;
+
+void task(void) {
+    int arg = 0;
+    arg = Task_GetArg();
+
+    add_trace(arg, ENTER);
+    add_trace(arg, EXIT);
+}
+
+void err_handler() {
+    UART_print("fail");
+}
+
+void test_results() {
+    char * trace = get_trace();
+    char * correct_trace = "(0,0),(1,1),(2,2),(3,3),";
+    UART_print("Trace: %s\n", trace);
+    if (strcmp(correct_trace, trace) == 0) {
+        UART_print("pass");
+    } else {
+        UART_print("fail");
+    }
+}
+
+void main() {
+    UART_Init0(57600);
+    set_error_handler(err_handler);
+
+    UART_print("\ntest begin\n");
+
+    Task_Create_System(task, 0);
+    Task_Create_System(task, 1);
+    Task_Create_System(task, 2);
+    Task_Create_System(task, 3);
+    Task_Create_System(test_results, 0);
+}</code></pre>
+<p class="caption">Sample test case</p>
+
+                        <h2>8.3 Measurements</h2>
+                        <p>The timing of critical operations inside the RTOS was measured using a logic analyzer. First, the time to switch context from kernel to task and vice versa was checked using a single task that repeatedly called <code>Task_Next()</code>. When switching to the kernel context, a pin was set high at the beginning of <code>Task_Next()</code> and set low when the kernel main loop was resumed. When switching out of kernel context, a pin was set high immediately before <code>exit_kernel()</code> and set low when the task resumed (after <code>Task_Next()</code>). The time taken for context switching was almost identical in either direction, at about 16&#181;s.</p>
+                        <img src="images/project3/logic_ctx_switch.png" style="width: 800px" />
+                        <p class="caption">Context switching timing</p>
+
+                        <p>Second, task creation time for a system task was measured. A pin was set high in <code>main()</code> immediately before calling <code>Task_Create_System</code> and set low immediately after. The total time measured between these events was 17.92&#181;s. It is estimated that the majority of this time is spent creating the task's initial stack.</p>
+
+                        <p>Third, the event signal-wait cycle time was measured using two system tasks. The first task set a pin high and then waited on an event. The second task signalled the event and called <code>Task_Next()</code>. The first task then set the pin low when it resumed. The total time the first task spent waiting was measured to be 2.96&#181;s.</p>
+                        
+                        <p>Fourth, jitter of a periodic task was measured. A single periodic task was created which XORed the value of a pin whenever it ran. Jitter was almost nonexistent; differences in timing were less than 0.1&#181;s in all recorded instances.</p>
+                        <img src="images/project3/logic_jitter.png" style="width: 800px" />
+                        <p class="caption">Jitter timing</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="obstacles">9.0 Obstacles</h1>
+                        <p>The most difficult part of implementing the RTOS was the logic to save and restore context. If done incorrectly, it was almost impossible to debug or get feedback as the board would most often restart. Debugging also had to be done carefully to avoid allocating new variables on the stack in critical areas.</p>
+                        
+                        <p>Difficulties in manipulating the stack were compounded by an unsolved error encountered when assigning to and reading from the board's stack pointer (<code>SP</code>). For reasons unknown, attempting to write a 16-bit integer to <code>SP</code> resulted in the most significant byte being truncated, causing the RTOS to point into invalid memory. This issue was solved by explicitly writing each byte of the stack pointer, as shown in the code below, which restores the kernel's stack pointer.</p>
+                        <pre><code data-language="c">SP = (uint8_t) (kernel_sp);
+*(&SP + 1) = (uint8_t) ((volatile uint16_t) kernel_sp >> 8);</code></pre>
+
+                        <p>Likewise for reading, each byte of the stack pointer had to be extracted separately, or the most significant byte would not be included.</p>
+                        <pre><code data-language="c">kernel_sp = ((uint16_t) *(&SP + 1) << 8) | ((uint16_t) SP );</code></pre>
+                        
+                        <p>Unforunately, the <code>SPH</code> macro would not work or did not exist, or the above code could have been much cleaner. The <code>SPL</code> macro was defined, but it pointed to the same address as <code>SP</code> and suffered from the same issue.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="appendix">10.0 Appendix</h1>
+                        <p><a href="code/project3.tar.gz">Source code</a> (project3.tar.gz)</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="references">11.0 References</h1>
+                        <p>The XplainedRTOS implementation by Scott Craig, Justin Tanner, and Matt Campbell was used as a significant reference.</p>
+                    </div>
+                </div> <!-- end #content -->
+            </div> <!-- end #page -->
+        
+            <div style="clear: both;">
+                &nbsp; 
+            </div>
+        </div> <!-- end #wrapper -->
+        
+        <div id="footer">
+            <p>Andrey Polyakov, Jared Griffis - University of Victoria - 2013</p>
+            <p>Design by <a href="http://www.freecsstemplates.org/" rel="nofollow">FreeCSSTemplates.org</a>.</p>
+        </div><!-- end #footer -->
+        
+        <script src="js/rainbow.min.js"></script>
+        <script src="js/generic.js"></script>
+        <script src="js/c.js"></script>
+        <script src="js/asm.js"></script>
+        <script src="js/avr-asm.js"></script>
+    </body>
+</html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!--
+Design by Free CSS Templates
+http://www.freecsstemplates.org
+Released for free under a Creative Commons Attribution 2.5 License
+
+Name       : Breakeven 
+Description: A two-column, fixed-width design with dark color scheme.
+Version    : 1.0
+Released   : 20130509
+
+-->
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>CSC460 - Summer 2013 - Project 2</title>
+        <link href="http://fonts.googleapis.com/css?family=Open+Sans:400,300,600" rel="stylesheet" type="text/css"/>
+        <link href="http://fonts.googleapis.com/css?family=Abel|Satisfy" rel="stylesheet" type="text/css"/>
+        <link href="style.css" media="screen" rel="stylesheet" type="text/css"/>
+        
+        <link href="blackboard.css" media="screen" rel="stylesheet" type="text/css"/>
+    </head>
+    
+    <body>
+        <div id="wrapper">
+            <div id="header-wrapper">
+                <div class="container" id="header">
+                    <div id="logo">
+                        <h1><a href="index.html">CSC460 - Summer 2013</a></h1>
+                    </div>
+                    <div id="menu">
+                        <ul>
+                            <li><a href="index.html">Homepage</a></li>
+                            <li><a href="project1.html">Project 1</a></li>
+                            <li class="current_page_item"><a href="#">Project 2</a></li>
+                            <li><a href="project3.html">Project 3</a></li>
+                            <li><a href="project4.html">Project 4</a></li>
+                            <li><a href="project5.html">Project 5</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div> <!-- end header -->
+            
+            <div id="page">
+                <h1 class="title">Project 2 - Sentry Roomba Using RTOS</h1>
+                
+                <div id="sidebar" style="margin-top: 0px">
+                    <ul>
+                        <li>
+                            <h2>Table Of Contents</h2>
+                            <ul>
+                                <li><a href="#objective">1.0 Objective</a></li>
+                                <li><a href="#hardware">2.0 Hardware</a></li>
+                                <li><a href="#cpu">3.0 I/O Latency and CPU Utilization</a></li>
+                                <li><a href="#multi">4.0 Multithreaded</a></li>
+                                <li><a href="#errors">5.0 Obstacles</a></li>
+                                <li><a href="#demo">6.0 Demonstration</a></li>
+                                <li><a href="#appendix">7.0 Appendix</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div> <!-- end #sidebar -->
+                
+                <div id="content">
+                    <div class="entry">
+                        <h1 id="objective">1.0 Objective</h1>
+                        <p>Project 2 has two main objectives. The first is to conduct measurements of the I/O latency and CPU utilization of the code used in project 1. The second is to, using this information, modify the sentry robot from project 1 to run on top of a provided real-time operating system (RTOS).</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="hardware">2.0 Hardware</h1>
+                        <p>Project 2 uses largely the same hardware as project 1. See the <a href="project1.html">project 1 report</a> for information on the sensors used or the iRobot Roomba.</p>
+                        <p>A different board was used to run the RTOS in project 2, however. This is the Xplained board, which has an ATMEGA-1284P microcontroller.</p> <p>Documentation for this board is available <a href="http://www.atmel.ca/tools/MEGA-1284PXPLAINED.aspx">here</a>. An image of the board is shown below.</p>
+                        
+                        <img src="images/project2/xplained.jpg" />
+                        <p class="caption">MEGA-1284P Xplained Board</p>
+                        
+                        <p>The Xplained board was connected to the sensors and Roomba as shown in the following diagram. The power supply is shown in more detail below.</p>
+                        <img src="images/project2/block_diagram.png" style="width: 500px"/>
+                        <p class="caption">Project 2 Block Diagram</p>
+                        
+                        <p>As in project 1, a power supply was configured to regulate the 14.4V from the Roomba battery into a usable 5V. The design of the power supply is shown in the figure below.</p>
+                        <img src="images/project2/power_supply.png" style="width: 600px"/>
+                        <p class="caption">5V Power Supply</p>
+                        
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="cpu">3.0 I/O Latency and CPU Utilization</h1>
+                        <p>I/O latency of the sonar and PIR sensor were measured using project 1 code. Idle CPU time was also measured, and CPU utilization was estimated.</p>
+                        
+                        <h2>3.1 Sonar Pings</h2>
+                        <p>The sentry robot in project 1 used interrupts to deal with sonar readings, and kept the sonar in continuous ranging mode. This meant that the sentry robot never had to manually trigger sonar pings or actively wait for the results to come back. On a rising edge, the ISR prepares input capture and saves the timer value. On a falling edge, the ISR calculates the time difference and calls a callback with the distance in centimeters, then restarts the timer to prevent overflows. The timer prescaler was calculated based on the fact that the sonar takes up to 49ms between ranging measurements.</p>
+                        
+                        <p>The ISR used is shown below, with timing code added. PB6 was measured by an attached logic analyzer to determine timings.</p>
+                        
+<pre><code data-language="c">ISR(TIMER1_CAPT_vect) {
+    PORTB |= _BV(PB6); // ************************************** HIGH PB6
+    static uint16_t rising_timestamp;
+    if (TCCR1B & _BV(ICES1)) {     // Rising edge
+        // Set input capture for falling edge
+        TCCR1B &= ~_BV(ICES1);
+        rising_timestamp = ICR1;
+        PORTB &= ~_BV(PB6); // ********************************* LOW PB6
+    } else {                       // Falling Edge
+        _stop_timer();
+        // Set input capture for rising edge
+        TCCR1B |= _BV(ICES1);
+        // The falling edge triggered the ISR
+        uint32_t delta = (uint32_t) ICR1 - (uint32_t) rising_timestamp;
+        _ping_response_callback(delta * DELTA_MULTIPLIER);
+        _start_timer();
+        PORTB &= ~_BV(PB6); // ********************************* LOW PB6
+    }
+}</code></pre>
+
+			<p>The logic analyzer was used to measure sonar timings when pings were returned and when pings were lost. The logic analyzer outputs are shown below, first for a returned ping. Each images shows the rising edge and falling edge interrupts with their execution times. The gap in the middle represents the time from the sonar rising edge to the falling edge, and its width is shown in the "Measurements" pane on the right side. For ping received (object in range of sonar), the gap width is 2.31ms; when the ping is lost (object out of range of sonar), the gap is approximately 37.5ms, which agrees with the <a href="http://www.maxbotix.com/documents/MB1000_Datasheet.pdf">sonar specification</a> on ping timeouts.</p>
+                        
+                        <img style="width: 700px;" src="images/project2/logic_sonar_received.png"/>
+                        <p class="caption">Ping Received Measurements (gap width: 2.31ms)</p>
+                        <img style="width: 700px;" src="images/project2/logic_sonar_lost.png"/>
+                        <p class="caption">Ping Lost Measurements (gap width: 37.51ms)</p>
+                        
+                        <h2>3.2 PIR Sensor Readings</h2>
+                        <p>Since the PIR sensor does not involve timing in its measurements, the sensor value can be obtained almost instantly by reading the appropriate input pin. The PIR sensor has a significant delay between measurement cycles, but obtaining the sensor value requires only one line of code, and the time taken is insignificant.</p>
+                        
+                        <h2>3.3 Idle CPU Time</h2>
+                        <p>The sentry robot in project 1 used interrupts to handle dealing with the sonar and PIR sensor, and so avoids busy-waiting for these sensor values. The sentry does use synchronous delays in two important areas, though: when turning and when getting Roomba sensor packets.</p>
+                        
+                        <p>The <code>turn90</code> function is listed below with debugging code using pin PB6. This function is used to turn the robot approximately 90 degrees, and so waits for a pre-calculated time for the robot to finish turning fully.</p>
+                        
+<pre><code data-language="c">void turn90(bool right) {
+    PORTB |= _BV(PB6); // ****************** HIGH PB6
+    roomba_drive(200, right ? -1 : 1);
+
+    int i;
+    for (i = 0; i < 800; i++) {
+        // If PIR triggered, stop turning.
+        if (are_you_there) {
+            roomba_drive(0, RADIUS_STRAIGHT);
+            break;
+        }
+        _delay_ms(1);
+    }
+    PORTB &= ~_BV(PB6); // ****************** LOW PB6
+}</code></pre>
+
+                        <p>The image below shows the logic analyzer capture of the <code>turn90</code> function, which takes approximately 0.8s to execute.</p>
+                        <img style="width: 700px;" src="images/project2/logic_rotate90.png"/>
+                        <p class="caption">turn90 Measurements (gap width: 0.8s)</p>
+                        
+                        <p>The sentry also delays to wait for the Roomba to return sensor packet 1 inside the <code>roomba_sense_1</code> function. This function is called every cycle of the main loop to check for virtual or physical walls.</p>
+                        
+
+<pre><code data-language="c">// Blocking call
+ROOMBA_PACKET_1 roomba_sense_1() {
+    PORTB |= _BV(PB6); // ***************** HIGH PB6
+    // Send request
+    uint8_t data[] = { (uint8_t) ROOMBA_SENSOR_PACKET_1 };
+    _roomba_send_command(OC_SENSORS, 1, data);
+
+    // Recieve into a buffer
+    int packet_size = sizeof(ROOMBA_PACKET_1);
+    uint8_t buffer[packet_size];
+
+    // Busy wait until entire packet is read
+    int i = 0;
+    while (i < packet_size) {
+        buffer[i++] = rxByteBlocking(UART_CHANNEL_3);
+    }
+
+    ROOMBA_PACKET_1 packet;
+    memcpy(&packet, buffer, packet_size);
+    PORTB &= ~ _BV(PB6); // ***************** LOW PB6
+    return packet;
+}</code></pre>
+
+                        <p>The image below shows the logic analyzer capture of the <code>roomba_sense_1</code> function, which takes approximately 15ms to execute.</p>
+                        <img style="width: 700px;" src="images/project2/logic_roomba_sensor.png"/>
+                        <p class="caption">roomba_sense_1 Measurements (gap width: 15ms)</p>
+
+                        <p>The remainder of the sentry robot code is either interrupt handlers or main logic. The main logic polls the sensor values, contained in variables set by the interrupt handlers, and changes the sentry's behaviour accordingly, but this polling is critical to the correct operation of the sentry.</p>
+                        
+                        <p>CPU utilization depends on the sentry's path and wall placement because time is spent idle while turning. Turning is usually only a small portion of the sentry's operation, however. Much more important is the time spent waiting for the sensor packet. The packet is requested on every loop iteration of the main logic, and the remainder of the main logic is simply checking variables or using asynchronous communication. Waiting for the packet takes about 15ms, but the remainder of the main loop only takes microseconds. The main loop is therefore almost entirely spent waiting for Roomba sensor data, which is critical in determining sentry behaviour. Waiting is still time spent idle, though, so overall CPU utilization is estimated at roughly 0.1%.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="multi">4.0 Multithreaded</h1>
+                        <p>The RTOS provides three distinct types of tasks, described below in order of descending priority.</p>
+                        <ul>
+                            <li><b>SYSTEM</b> level tasks are reserved for critical functions. They are scheduled by the RTOS in a first-come-first-served manner, and run until finished, or until the task is blocked or yields. A system task cannot be preempted by any other task.</li>
+                            <li><b>PERIODIC</b> tasks must run according to a given schedule; it is an error if this schedule is violated. The schedule of periodic tasks is defined by a PPP array, which is a series of (task, execution time) pairs. For example, given two tasks A and B, the PPP array { A, 2, B, 3 } defines a schedule where A runs for two ticks, followed by B for 3 ticks, then the schedule repeats.</li>
+                            <li><b>ROUND ROBIN</b> tasks only run when no system or periodic tasks are running. A round robin task gets one tick, then the processor is given to the next round robin task.</li>
+                        </ul>
+                        
+                        <p>The sentry robot code from project 1 was decomposed into a series of distinct tasks using combinations of the above priorities and run on top of the provided RTOS. The individual tasks are described below.</p>
+                        <table class="task-table">
+                            <tr>
+                                <th>Task</th>
+                                <th>Purpose</th>
+                            </tr>
+                            <tr>
+                                <td>PIR_CHECK</td>
+                                <td>Reads and stores the value of the PIR sensor</td>
+                            </tr>
+                            <tr>
+                                <td>SONAR_PING</td>
+                                <td>Triggers, waits for, and stores the result of a single sonar ping</td>
+                            </tr>
+                            <tr>
+                                <td>ROOMBA_SENSOR_QUERY</td>
+                                <td>Retrieves sensor packet 1 from the Roomba and stores it</td>
+                            </tr>
+                            <tr>
+                                <td>FSM_TRANSITION</td>
+                                <td>Handles sentry state changes (from searching to tracking and vice versa)</td>
+                            </tr>
+                            <tr>
+                                <td>ADJUST_MOVEMENT</td>
+                                <td>Moves the robot, taking into account sensor readings and the current state</td>
+                            </tr>
+                        </table>
+                        
+                        <p>Decomposing project 1 code into tasks, especially tasks that are meant to run periodically, was non-trivial. The main loop used in project 1 was never cut off, whereas periodic tasks only get a small window. Some routines, for example turning, had to be completely changed to accommodate the fact that they could no longer wait for large amounts of time. The sentry used to make a 90 degree turn when it hit a wall, but this took 0.8 seconds, more time than is practical to allot for a periodic task, especially one that would be needed so infrequently. Instead, the sentry was made to only turn as long as it was pressed against a wall. This results in some scenarios where the sentry hits a wall, turns slightly, goes forward, hits the wall, turns a bit more, and continues this for a few cycles until it is clear of the wall. Sonar logic also had to be rewritten; in project 1, the sonar was continuously ranging, but this was changed to fire pings only on command, one at the start of the <code>SONAR_PING</code> task.</p>
+                            
+                        <h2>4.1 Periodic Only</h2>
+                        <p>First, the sentry robot was modified to run on top of the RTOS using entirely periodic tasks. The PPP for this part is shown below.</p>
+                        <pre><code data-language="c">{ PIR_CHECK, 1, SONAR_PING, 10, ROOMBA_SENSOR_QUERY, 4, FSM_TRANSITION, 1, ADJUST_MOVEMENT, 3 };</code></pre>
+                        
+                        <p>The <code>PIR_CHECK</code> task was given only 1 tick because it simply reads an input pin and sets a variable. The <code>SONAR_PING</code> task was given 10 ticks based on earlier measurements; the sonar times out on missed pings in less than 40ms, so a padding of two ticks for calculations was added to get the worst case running time. The <code>ROOMBA_SENSOR_QUERY</code> task was given 4 ticks to allow for fluctuations from the average transmission time of approximately 15ms. <code>FSM_TRANSITION</code> was given one tick because it is short and only deals with variables, and <code>ADJUST_MOVEMENT</code> was given 3 because it largely deals with variables, except for transmitting the drive command to the Roomba, which happens relatively quickly.</p>
+                        
+                        <p>Making all tasks periodic worked fairly well with the sentry design. It makes sense to, in order, check the sensors, change the state, and drive the Roomba accordingly. The nature of periodic scheduling meant that some unnecessary work was being done, however. The sonar was being used every cycle, even while the Roomba was searching and had no need of distance data. The PPP could not be changed at runtime, though, so the task schedule had to work for both states (searching and tracking), and therefore needed to include the sonar task.</p>
+                        
+                        <h2>4.2 System and Round Robin Only</h2>
+                        <p>Next, tasks priorities were reassigned to either system or round robin.</p>
+                        
+                        <table class="task-table">
+                            <tr>
+                                <th>Task</th>
+                                <th>Priority</th>
+                            </tr>
+                            <tr>
+                                <td>PIR_CHECK</td>
+                                <td>Round robin</td>
+                            </tr>
+                            <tr>
+                                <td>SONAR_PING</td>
+                                <td>System</td>
+                            </tr>
+                            <tr>
+                                <td>ROOMBA_SENSOR_QUERY</td>
+                                <td>System</td>
+                            </tr>
+                            <tr>
+                                <td>FSM_TRANSITION</td>
+                                <td>Round robin</td>
+                            </tr>
+                            <tr>
+                                <td>ADJUST_MOVEMENT</td>
+                                <td>Round robin</td>
+                            </tr>
+                            <tr>
+                                <td>ROOMBA_DRIVE</td>
+                                <td>System</td>
+                            </tr>
+                        </table>
+                        
+                        <p>The <code>PIR_CHECK</code> task was made round robin because it only ever requires 1 tick to complete, and the PIR changes state quite infrequently relative to the clock speed of the board. <code>FSM_TRANSITION</code> was made round robin because it also completes very fast, and does not need to stick to a schedule. The <code>SONAR_PING</code> task needed to be a system-level task to prevent preemption, as it needs to check the timer exactly when the ping returns. The <code>ROOMBA_SENSOR_QUERY</code> also needed to be a system task because it needs to receive the entire sensor packet. <code>ADJUST_MOVEMENT</code> was made round robin by extracting the part that sends drive commands to the Roomba into a new task, <code>ROOMBA_DRIVE</code>, leaving only code that manipulates variables. <code>ADJUST_MOVEMENT</code> spawns the system-level tasks, both to communicate with sensors and to drive the Roomba.</p>
+                        
+                        <p>Making <code>FSM_TRANSITION</code> and <code>ADJUST_MOVEMENT</code> round robin tasks might introduce lag in the sentry behaviour, depending on where they are preempted. For example, <code>FSM_TRANSITION</code> compares the timer value against a 5 second timeout to decide when to leave the tracking state when no more movement is detected. If <code>FSM_TRANSITION</code> gets and stores the timer value (say 4.99 seconds) but is preempted before checking it against the 5 second timeout for the tracking state, it may think the sentry should still be tracking the next time it runs (it thinks the timer is still at 4.99), even if the timer value is now more than 5 seconds. These lags are barely noticeable, however, and since the sentry does not have an exact schedule to follow, they do not impact the operation of the sentry.</p>
+                        
+                        <p>Spawning system-level tasks for every operation that needs more than 1 tick to execute is wasteful and introduces a lot of overhead. On the other hand, it allows the sentry to do work only when it is required; when using periodic tasks, for example, the sonar had to fire every cycle because the task schedule was fixed after initialization.</p>
+                        
+                        <h2>4.3 Optimal Task Priorities</h2>
+                        <p>Finally, tasks were assigned priorities to create an optimal schedule. Chosen priorities are shown below.</p>
+                        
+                        <table class="task-table">
+                            <tr>
+                                <th>Task</th>
+                                <th>Priority</th>
+                            </tr>
+                            <tr>
+                                <td>PIR_CHECK</td>
+                                <td>Periodic</td>
+                            </tr>
+                            <tr>
+                                <td>SONAR_PING</td>
+                                <td>Periodic</td>
+                            </tr>
+                            <tr>
+                                <td>ROOMBA_SENSOR_QUERY</td>
+                                <td>Periodic</td>
+                            </tr>
+                            <tr>
+                                <td>FSM_TRANSITION</td>
+                                <td>Round robin</td>
+                            </tr>
+                            <tr>
+                                <td>ADJUST_MOVEMENT</td>
+                                <td>Round robin</td>
+                            </tr>
+                            <tr>
+                                <td>ROOMBA_DRIVE</td>
+                                <td>Periodic</td>
+                            </tr>
+                        </table>
+                        
+                        <p>The sensor tasks (<code>PIR_CHECK</code>, <code>SONAR_PING</code>, and <code>ROOMBA_SENSOR_QUERY</code>) were switched back to periodic to ensure that sensor data is refreshed at a consistent rate. The <code>ROOMBA_DRIVE</code> task was retained from section 4.2 to send the drive commands to the Roomba. The current drive command was stored in a global variable by <code>ADJUST_MOVEMENT</code>, which runs as a round robin task because it does not need to execute on an exact schedule and can fit in the gaps between the periodic tasks. <code>FSM_TRANSITION</code> runs as round robin for the same reasons.</p>
+                        
+                        <p>The PPP for the periodic tasks is shown below.</p>
+                        <pre><code data-language="c">{ PIR_CHECK, 1, SONAR_PING, 10, ROOMBA_SENSOR_QUERY, 4, ROOMBA_DRIVE, 1 }</code></pre>
+                        
+                        <p>Timings are the same as in section 4.1. The new periodic task, <code>ROOMBA_DRIVE</code>, was timed using the logic analyzer to capture sending the drive command. The output from this capture is shown below. Sending the drive command and all data bytes took approximately 0.87ms, so the task was given the minimum of 1 tick.</p>
+                        <img style="width: 700px;" src="images/project2/logic_drive_command.png"/>
+                        <p class="caption">Roomba Drive Command Timing (time: 0.87ms)</p>
+                        
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="errors">5.0 Obstacles</h1>
+                        <p>By far the most persistent obstacle in debugging project 2 is believed to be a faulty Roomba mini-DIN connector cable. Even after using the logic analyzer to verify that commands were being sent properly, no data was being returned through the cable. This played havoc with periodic tasks like <code>ROOMBA_SENSOR_QUERY</code>, which expected data to be returned quickly, causing the tasks to take longer than their assigned time and cause the RTOS to enter an error state.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="demo">6.0 Demonstration</h1>
+                        <p>The video below shows the sentry in action, using the code from section 4.1 (periodic tasks only). Behaviour is identical (or at least insignificantly different) for the code from sections 4.2 and 4.3, so videos were not included.</p>
+                        <iframe width="560" height="315" src="http://www.youtube.com/embed/k5GmZRU-ceY" frameborder="0" allowfullscreen></iframe>
+                        <p></p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="appendix">7.0 Appendix</h1>
+                        <p><a href="code/project2_periodic.tar.gz">Source code (all periodic tasks)</a> (project2_periodic.tar.gz)<br/>
+                        <a href="code/project2_systemrr.tar.gz">Source code (system and round robin)</a> (project2_systemrr.tar.gz)<br/>
+                        <a href="code/project2_optimal.tar.gz">Source code (optimal priorities)</a> (project2_optimal.tar.gz)</p>
+                    </div>
+                </div> <!-- end #content -->
+            </div> <!-- end #page -->
+        
+            <div style="clear: both;">
+                &nbsp; 
+            </div>
+        </div> <!-- end #wrapper -->
+        
+        <div id="footer">
+            <p>Andrey Polyakov, Jared Griffis - University of Victoria - 2013</p>
+            <p>Design by <a href="http://www.freecsstemplates.org/" rel="nofollow">FreeCSSTemplates.org</a>.</p>
+        </div><!-- end #footer -->
+        
+        <script src="js/rainbow.min.js"></script>
+        <script src="js/generic.js"></script>
+        <script src="js/c.js"></script>
+    </body>
+</html>

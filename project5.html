@@ -1,0 +1,678 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!--
+Design by Free CSS Templates
+http://www.freecsstemplates.org
+Released for free under a Creative Commons Attribution 2.5 License
+
+Name       : Breakeven 
+Description: A two-column, fixed-width design with dark color scheme.
+Version    : 1.0
+Released   : 20130509
+
+-->
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>CSC460 - Summer 2013 - Project 5</title>
+        <link href="http://fonts.googleapis.com/css?family=Open+Sans:400,300,600" rel="stylesheet" type="text/css"/>
+        <link href="http://fonts.googleapis.com/css?family=Abel|Satisfy" rel="stylesheet" type="text/css"/>
+        <link href="style.css" media="screen" rel="stylesheet" type="text/css"/>
+        
+        <link href="blackboard.css" media="screen" rel="stylesheet" type="text/css"/>
+    </head>
+    
+    <body>
+        <div id="wrapper">
+            <div id="header-wrapper">
+                <div class="container" id="header">
+                    <div id="logo">
+                        <h1><a href="index.html">CSC460 - Summer 2013</a></h1>
+                    </div>
+                    <div id="menu">
+                        <ul>
+                            <li><a href="index.html">Homepage</a></li>
+                            <li><a href="project1.html">Project 1</a></li>
+                            <li><a href="project2.html">Project 2</a></li>
+                            <li><a href="project3.html">Project 3</a></li>
+                            <li><a href="project4.html">Project 4</a></li>
+                            <li class="current_page_item"><a href="#">Project 5</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div> <!-- end header -->
+            
+            <div id="page">
+                <h1 class="title">Project 5 - Roomba Mapping System</h1>
+                
+                <div id="sidebar">
+                    <ul>
+                        <li>
+                            <h2>Table Of Contents</h2>
+                            <ul>
+                                <li><a href="#objective">1.0 Objective</a></li>
+                                <li><a href="#hardware">2.0 Hardware</a></li>
+                                <li><a href="#os">3.0 RTOS Migration</a></li>
+                                <li><a href="#sensors">4.0 Sensors and Actuators</a></li>
+                                <li><a href="#communication">5.0 Communication</a></li>
+                                <li><a href="#system">6.0 System Behaviour</a></li>
+                                <li><a href="#error">7.0 Difficulties and Sources of Error</a></li>
+                                <li><a href="#design">8.0 Design Evaluation</a></li>
+                                <li><a href="#demo">9.0 Demonstration</a></li>
+                                <li><a href="#appendix">10.0 Appendix</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div> <!-- end #sidebar -->
+                
+                <div id="content">
+                    <div class="entry">
+                        <h1 id="objective">1.0 Objective</h1>
+                        <p>The objective of this project is to implement the Roomba mapping system, as described in <a href="project4.html">project 4</a>.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="hardware">2.0 Hardware</h1>
+                        
+                        <h2>2.1 Boards</h2>
+<!--                        <p>Two different boards were used in the final project implementation. The first was the Xplained board, which has an ATmega1284P microcontroller. This board was used for the base station. Documentation for this board is available <a href="http://www.atmel.ca/tools/MEGA-1284PXPLAINED.aspx">here</a>. An image of the board is shown below.</p>
+                        <img src="images/project5/xplained.jpg" />
+                        <p class="caption">MEGA-1284P Xplained Board</p>-->
+                        
+                        <p>The Arduino Mega 2560 board was used to control the Roombas and the base station. The Mega 2560 has an ATmega2560 microcontroller, which uses 17-bit addressing as compared to the 16-bit addressing of the previously used Xplained board. Documentation for the Mega 2560 is available <a href="http://arduino.cc/en/Main/arduinoBoardMega2560">here</a>. An image of the board is shown below.</p>
+                        <div style="width: 500px">
+                        <img src="images/project5/mega2560.jpg" />
+                        <p class="caption">Arduino Mega 2560 Board</p>
+                        </div>
+                        
+                        <h2>2.2 Roomba</h2>
+                        <p>Multiple iRobot Roombas are used as mobile platforms for the mapping hardware. The Roomba is a small, circular robot, about 13.5 inches in diameter, used for automated cleaning. It has three wheels (two drive wheels on the sides and one center wheel for balance), a vacuum and brush, LEDs that indicate its current status, and a number of sensors that help the Roomba navigate as it cleans.</p>
+                        <p>A board communicates with a Roomba through its serial command interface (SCI), which allows UART communication at TTL levels. The Roomba has a mini-DIN port, with pin assignment shown below.</p>
+                        <img src="images/roomba_minidin.png" style="width:400px" />
+                        <p class="caption">Roomba Mini-Din Connector</p>
+                        <p>The other end of the mini-DIN cable is connected to the breadboard. The cable end, split into pins, is shown below.</p>
+                        <img src="images/roomba_pins.png" style="width:400px" />
+                        <p class="caption">Labelled Roomba Pins</p>
+                        
+                        <h2>2.3 Sonar</h2>
+                        <p>A sonar measures distances by emitting pulses of sound that reflect off nearby objects and recording the time for the pulses to return. Each Roomba is equipped with an LV-MaxSonar-EZ0 to measure distances to obstacles. The MaxSonar is capable of ranging objects from 6 to 254 inches away with 1 inch resolution.</p>
+                        <img src="images/sonar.jpg" style="width: 150px"/>
+                        <p class="caption">LV-MaxSonar-EZ0</p>
+                
+                        <p>The MaxSonar has 7 pins, including Vcc (2.5V - 5.5V DC) and GND. The remaining 5 pins are described below. The sonar datasheet is available <a href="http://www.maxbotix.com/documents/MB1000_Datasheet.pdf">here</a>.</p>
+                        <table>
+                            <th>MaxSonar Pin Out</th>
+                            <th>Function</th>
+                            <tr>
+                                <td>TX</td>
+                                <td>
+                                    BW high: single sonar pulse for chaining<br>
+                                    BW low: serial output in RS232 format
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>RX</td>
+                                <td>
+                                    Hold high for 20us: start ranging<br>
+                                    Hold high: continue ranging<br>
+                                    Hold low: stop ranging<br>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>AN</td>
+                                <td>Analog voltage output (Vcc / 512 volts per inch of distance)</td>
+                            </tr>
+                            <tr>
+                                <td>PW</td>
+                                <td>Pulse width, scaled at 147us per inch of distance</td>
+                            </tr>
+                            <tr>
+                                <td>BW</td>
+                                <td>
+                                    Hold high: chaining<br>
+                                    Hold low: serial output on TX<br>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <h2>2.4 Servo</h2>
+                        <p>Each sonar is also mounted on a servo so that it can be rotated to take measurements without turning the Roomba. A servo is a type of actuator that uses feedback to enable accurate position control. The servo used is the Futaba S3004 (datasheet available <a href="http://www.ecgf.uakron.edu/grover/web/ee263/labs/Parts/S3004.pdf">here</a>). The servo has 3 pins: Vcc, GND, and Control. A PWM signal is sent over the Control pin to set the servo position. Pulses are between 500&#181;s and 2500&#181;s wide, and sent 20ms apart.
+                        
+                        <img src="images/project5/futabaS3004.jpg" />
+                        <p class="caption">Futaba S3004 Servo</p>
+                        
+                        <h2>2.5 Radio</h2>
+                        <p>The Roombas and base station communicate using wireless radio. The Radio used is the Nordic Semiconductor nRF24L01+ (datasheet available <a href="http://www.nordicsemi.com/eng/Products/2.4GHz-RF/nRF24L01P">here</a>). The following pins are used in this project.</p>
+                        
+                        <table>
+                            <tr>
+                                <th>Pin</th>
+                                <th>Function</th>
+                            </tr>
+                            <tr>
+                                <td>Vcc</td>
+                                <td>Power supply (1.9V - 3.6V DC)</td>
+                            </tr>
+                            <tr>
+                                <td>GND</td>
+                                <td>Ground</td>
+                            </tr>
+                            <tr>
+                                <td>CE</td>
+                                <td>Chip Enable; switches between Rx and Tx mode</td>
+                            </tr>
+                            <tr>
+                                <td>CSN</td>
+                                <td>SPI chip select</td>
+                            </tr>
+                            <tr>
+                                <td>SCK</td>
+                                <td>SPI clock</td>
+                            </tr>
+                            <tr>
+                                <td>MOSI</td>
+                                <td>Master Out Slave In; SPI slave data input</td>
+                            </tr>
+                            <tr>
+                                <td>MISO</td>
+                                <td>Master In Slave Out; SPI slave data output</td>
+                            </tr>
+                            <tr>
+                                <td>IRQ</td>
+                                <td>Interrupt pin, active low</td>
+                            </tr>
+                        </table>
+                        
+                        <p>The nRF24L01+ chip is shown below, with pins labelled.</p>
+                        <img src="images/project5/radiopins.png" style="width: 500px"/>
+                        <p class="caption">nRF24L01+ Radio with Pins Labelled</p>
+                        
+                        <h2>2.6 Bluetooth</h2>
+                        <p>The base station communicates with the Android smartphone using Bluetooth. The smartphone has Bluetooth built in, but the base station uses the JY-MCU v1.4 Bluetooth chip (datasheet available <a href="http://www.mcu-turkey.com/wp-content/uploads/2013/01/HC-Serial-Bluetooth-Products-201104.pdf">here</a>). Pins used are listed below.</p>
+                        
+                        <table>
+                            <tr>
+                                <th>Pin</th>
+                                <th>Function</th>
+                            </tr>
+                            <tr>
+                                <td>EN</td>
+                                <td>Enable; set to 1 to enable</td>
+                            </tr>
+                            <tr>
+                                <td>VCC</td>
+                                <td>Power supply (3.3V - 5V)</td>
+                            </tr>
+                            <tr>
+                                <td>GND</td>
+                                <td>Ground</td>
+                            </tr>
+                            <tr>
+                                <td>TXD</td>
+                                <td>UART data output</td>
+                            </tr>
+                            <tr>
+                                <td>RXD</td>
+                                <td>UART data input</td>
+                            </tr>
+                        </table>
+                        
+                        <p>The actual chip is shown below, with pins labelled.</p>
+                        
+                        <img src="images/project5/bluetooth.png" style="width: 500px" />
+                        <p class="caption">JY-MCU Bluetooth v1.4 with Pins Labelled</p>
+                        
+                        <h2>2.7 Android Smartphone</h2>
+                        <p>A smartphone/tablet is used to display the map data collected. Because of availability, the smartphone used is the Samsung Galaxy Nexus (GT-I9250) and the tablet is the Google Nexus 7 (2012 model).</p>
+                        <img src="images/project5/galaxynexus.png" style="width: 200px" />
+                        <p class="caption">Samsung Galaxy Nexus</p>
+                        
+                        <h2>2.8 Wiring</h2>
+                        <p>Wiring of the Roomba is shown below. The Roomba is controlled by a Mega2560 board, and has a sonar and servo, as well as a radio.</p>
+                        <img src="images/project5/roomba_wiring.png" style="width: 500px" />
+                        <p class="caption">Roomba Wiring Diagram</p>
+                        
+                        <p>The Roomba breadboard is shown below, fully wired up.</p>
+                        <img src="images/project5/roomba_breadboard.jpg" style="width: 500px" />
+                        <p class="caption">Roomba Breadboard</p>
+                        
+                        <p>Wiring of the base station is shown below. The base station is also controlled by a Mega2560 board, but it is powered from a laptop instead of a Roomba. The base station has a Bluetooth chip and a radio.</p>
+                        <img src="images/project5/base_wiring.png" style="width: 400px" />
+                        <p class="caption">Base Station Wiring Diagram</p>
+                        
+                        <p>The constructed base station is shown below.</p>
+                        <img src="images/project5/base_station.jpg" style="width: 300px" />
+                        <p class="caption">Base Station</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="os">3.0 RTOS Migration</h1>
+                        <p>In order to deal with the 17-bit addressing scheme of the ATmega2560, the RTOS implemented in project 3 had to undergo some slight modifications. Specifically, some extra data had to be considered when saving and restoring context. The ATmega2560 still uses <code>SPH</code> and <code>SPL</code> for the stack pointer, but the 17th bit of the stack pointer comes from the Extended Indirect Register (<code>EIND</code>), located at <code>0x3c</code>. The <code>EIND</code> is concatenated with <code>ZH</code> and <code>ZL</code> when using the <code>EICALL</code> or <code>EIJMP</code> instructions, as shown below.</p>
+                        <img src="images/project5/eind.png" style="width: 700px"/>
+                        <p class="caption">Indirect Pointer for EICALL/EIJMP</p>
+                        
+                        <p>An array of 3 8-bit integers was used to store the stack pointer instead of the previous single 16-bit number. Saving and restoring the current process's stack pointer is shown below.</p>
+                        
+<pre><code data-language="c">// Save stack pointer
+cur_process->sp[0] = EIND;
+cur_process->sp[1] = *(&SP + 1);
+cur_process->sp[2] = SP;
+
+// Restore stack pointer
+EIND = kernel_sp[0];
+*(&SP + 1) = kernel_sp[1];
+SP = kernel_sp[2];</pre></code>
+
+                        <p>The <code>EIND</code> also had to be accounted for when saving and restoring context. It was dealt with in largely the same way as <code>SREG</code>. The new assembly for saving context is shown below; <code>EIND</code> is pushed onto the stack following <code>SREG</code>.</p>
+
+<pre><code data-language="asm">push   r31           ; save r31 first so we can use r31 to save EIND/SREG
+in     r31,__SREG__  ; load SREG into r31
+cli                  ; disable interrupts
+push   r31           ; push r31 (now containing SREG)
+in     r31,0x3C      ; load EIND into r31
+push   r31           ; push r31 (now containing SREG)
+push   r30           ; push the remaining registers
+push   r29
+push   r28
+ ...
+push   r3
+push   r2
+push   r1
+push   r0</pre></code>
+<p class="caption">Saving Context with EIND</p>
+
+                        <p>Assembly for restoring context is shown below. <code>EIND</code> is popped immediately before <code>SREG</code>.</p>
+
+<pre><code data-language="asm">pop    r0
+pop    r1
+pop    r2
+pop    r3
+ ...
+pop    r28
+pop    r29
+pop    r30
+pop    r31            ; pop the saved EIND into r31
+out    0x3C, r31      ; restore EIND
+pop    r31            ; pop the saved SREG into r31
+out    __SREG__, r31  ; restore the saved SREG
+pop    r31            ; restore the actual r31</code></pre>
+<p class="caption">Restoring Context with EIND</p>
+                        
+                        <p>The final modification that had to be made was using 17-bit addresses when preparing the stack for a new process. The ATmega2560 expects 3 bytes for the new <code>PC</code> value when returning from a call, so one 0 byte was prepended to each of the addresses of the task function and the <code>Task_Terminate</code> function when they are pushed onto the newly created stack. This byte corresponds to the EIND, and is assumed to be 0 because all RTOS operations are performed in the lower half of memory.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="sensors">4.0 Sensors and Actuators</h1>
+                        <p>Drivers were written to operate the servo and sonar and to query the Roomba sensor data. Drivers were kept modular and separate from one another, and tested individually to iron out errors.</p>
+                        
+                        <h2>4.1 Servo</h2>
+                        <p>The servo requires a PWM signal to set its position, so timer/counter 3 was chosen to generate the signal. The timer was used in fast PWM mode because phase-correct PWM was not required. In fast PWM mode, the timer counts from bottom to top, then loops over and starts counting from bottom up again. The pulse is generated while the timer is between the compare value and the top.</p>
+                        
+                        <img src="images/project5/fastpwm.png" style="width: 600px" />
+                        <p class="caption">Fast PWM Timing Diagram</p>
+                        
+                        <p>The following function initializes the timer for fast PWM operation. An inverted PWM signal is required, so the timer is configured to set the pulse signal at the bottom and clear it when it reaches the compare value. Fast PWM is enabled, and the top is set to the value of <code>OCR3A</code>, which is set to give a pulse period of 20ms. The servo is centered to begin with. Finally, the timer is started by setting the prescaler to 8. This prescaler was chosen for maximum resolution given that pulses are sent with a period of 20ms.</p>
+                        
+<pre><code data-language="c">void InitServo() {
+    // PE4 = OC3B = Pin #2
+    DDRE = _BV(PE4);
+
+    // Clear OC3B on compare match, set at BOTTOM
+    TCCR3A = _BV(COM3B1);
+
+    // Fast PWM mode, TOP = OCR3A
+    TCCR3A |= _BV(WGM31) | _BV(WGM30);
+    TCCR3B |= _BV(WGM33) | _BV(WGM32);
+
+    // Set the PWM period using the TOP compare register
+    OCR3A = PWM_TOP_PERIOD;
+
+    // Set the servo to the center
+    set_pulse_width(PULSE_WIDTH_CENTER);
+
+    // Start timer with 8 prescaler
+    TCCR3B |= _BV(CS31);
+
+    // Turn on the servo
+    SERVO_POWER_DDR |= _BV(SERVO_POWER_PIN);
+    SERVO_POWER_PORT |= _BV(SERVO_POWER_PIN);
+}</code></pre>
+
+                        <p>To move the servo, the <code>SetServoAngle</code> function was created. The function maps the angle into the approximate range [480&#181;s, 2220&#181;s], which corresponds to the extremes of the servo range, and the compare value for fast PWM is set accordingly. The pulse width corresponding to the center value of the servo was determined to be approximately 1350&#181;s from experimentation. A delta of 870&#181;s on either side of this center point was found to yield angles very close to +/-90 degrees, leading to the interval mentioned previously. <code>SetServoAngle</code> applies a linear scaling to map an angle into this range; while not exact, the mapping is quite close and good enough for this project. Before returning, it delays for the approximate time it takes for the servo to move to the specified position. The function also caps input angles at 90 or -90 degrees to prevent going past the range of the servo.</p>
+
+<pre><code data-language="c">void ServoSetAngle(int angle) {
+    // Check for errors, cap the possible angle
+    if (angle > 90) {
+        angle = 90;
+    } else if (angle < -90) {
+        angle = -90;
+    }
+
+    if (angle == 0) {
+        set_pulse_width(PULSE_WIDTH_CENTER);
+    } else {
+        int delta_pwm = ((int32_t) angle) * PULSE_WIDTH_DELTA / 90;
+        set_pulse_width(PULSE_WIDTH_CENTER - delta_pwm);
+    }
+
+    // Block while the servo is turning
+    uint8_t abs_delta_angle = ABS(angle > current_servo_angle ? angle - current_servo_angle : current_servo_angle - angle);
+    for (; abs_delta_angle > 0; abs_delta_angle--) {
+        _delay_us(SERVO_SPEED_US_D * 2);
+    }
+
+    current_servo_angle = angle;
+}</code></pre>
+
+                        <h2>4.2 Sonar</h2>
+                        <p>The sonar code used is very similar to that used in projects 1 and 2. Timer 5 is used for input capture since the other timers are either already used or too small. Translating the input capture timer value into a meaningful distance requires taking a variety of factors into account:</p>
+                        
+                        <ul>
+                            <li>The CPU frequency of the board is 16 MHz</li>
+                            <li>The speed of sound in air is 340.29 m/s</li>
+                            <li>The time measured is actually the time for the sound to go out and come back.</li>
+                        </ul>
+                        
+                        <p>Given the range of expected measurements (up to approximately the sonar's maximum range of 254 inches), a conservative timer prescaler of 64 was chosen to prevent timer overflows while maintaining accurate resolution. This yields the following equation to derive distance from the timer value:<br>
+                <pre><code data-language="c">distance = timer_value * (64 * 34'029 cm/s / (16'000'000 ticks/s * 2))
+distance = timer_value * 0.068058</code></pre>
+
+                        <p>The sonar was mounted on top of the servo, and both were raised from the base of the Roomba to get more accurate readings. The mounting is shown in the image below.</p>
+                        <img src="images/project5/sonar_raised.jpg" style="width: 300px" />
+
+                        <h2>4.3 Roomba Wheel Sensors</h2>
+                        <p>The Roomba tracks its distance and angle by measuring the number of turns each of the Roomba's drive wheels have travelled. Both of these values are available as part of the second sensor packet, shown below. Distance is the distance travelled since the sensor packet was last requested, and angle is the angle the Roomba has turned through, also since the packet was last requested. These values are used to determine the current position of the Roomba using dead reckoning.</p>
+                        
+                        <table>
+                            <tr>
+                                <th>Opcode</th>
+                                <th>Packet Code</th>
+                                <th>Data 1</th>
+                                <th>Data 2</th>
+                                <th>Data 3</th>
+                                <th>Data 4</th>
+                                <th>Data 5</th>
+                                <th>Data 6</th>
+                            </tr>
+                            <tr>
+                                <td style="text-align: center">142</td>
+                                <td style="text-align: center">2</td>
+                                <td style="text-align: center">Remote Control</td>
+                                <td style="text-align: center">Buttons</td>
+                                <td colspan="2" style="text-align: center">Distance</td>
+                                <td colspan="2" style="text-align: center">Angle</td>
+                            </tr>
+                        </table>
+                        <p class="caption">Roomba SCI Sensor Packet #2</p>
+                        
+                        <p>Since the values are cleared whenever sensor packets are requested, accuracy is lost if packets are requested often. The main loop of the Roomba logic avoids querying the sensor data too often for this reason.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="communication">5.0 Communication</h1>
+                        <p>The base station, Roomba, and smartphone all communicate to transfer map, state, and command data between them. The base station and Roombas communicate using wireless radio (protocol nRF24). The base station and the Android smartphone communicate using Bluetooth. Bluetooth was chosen because most Android smartphones have built-in support for it. Because Bluetooth only supports paired communication, the smartphone cannot communicate with the Roombas, and only has contact with the base station. The diagram below shows the important channels of communication with their respective protocols.</p>                        
+                        <img src="images/project4/blockdiagram.png" style="width: 600px" />
+                        <p class="caption">Communication channels and protocols</p>
+                        
+                        <h2>5.1 Radio</h2>
+                        <p>Packets were implemented as described in project 4, with the addition of a bump packet. This extra packet was used to indicate that the Roomba had hit a wall, and simply contained the Roomba's ID number. See <a href="project4.html">project 4</a> for a more detailed description of the other packets.</p>
+                        
+<pre><code data-language="c">// Packet format for Roomba -> Base Station position information
+typedef struct {
+    uint8_t roomba_id;
+    int16_t delta_x;
+    int16_t delta_y;
+    int16_t alpha;
+} pf_position_t;
+
+// Packet format for Roomba -> Base Station sonar information
+typedef struct {
+    uint8_t roomba_id;
+    int16_t theta;
+    int16_t distance;
+} pf_sonar_t;
+
+// Packet format for Roomba -> Base Station bump information
+typedef struct {
+    uint8_t roomba_id;
+} pf_bump_t;
+
+// Packet format for Roomba -> Base Station heading direction query
+typedef struct {
+    uint8_t roomba_id;
+} pf_heading_req_t;
+
+// Packet format for Base Station -> Roomba heading direction reply
+typedef struct {
+    uint8_t roomba_id;
+    int16_t theta;
+} pf_heading_reply_t;</code></pre>
+                        <p class="caption">Packet structs</p>
+                        
+                        <p>The provided radio driver was used to send and receive radio packets. In the case of the Roomba, the <code>radio_rxhandler</code> handler signalled an event that read in the packet from the radio. The base station constantly checked for radio packets, so it used <code>radio_rxhandler</code> to set a flag to indicate when a packet was available.</p>
+                        
+                        <p>The Roomba code defined a set of helper functions to send radio packets, listed below. The last three are critical functions that continually retry sending until successful. The functions for sending position packets and bump packets are designated as critical because if those packets are not sent, the base station can fall out of sync with the Roomba, and the map becomes invalid. The function for sending the heading request is also critical because the Roomba will not know how to proceed unless it gets a new heading from the base station.</p>
+                        
+                        <p>Small delays were inserted between packet transmissions to avoid overflowing the buffer.</p>
+                        <pre><code data-language="c">inline void transmit_sonar_packet(int16_t distance, int16_t theta);
+
+// Blocking transmission, only returns upon successful transmit
+inline void transmit_position_packet_blocking(int16_t delta_x, int16_t delta_y, int16_t alpha);
+
+// Blocking transmission, only returns upon successful transmit
+inline void transmit_heading_request_packet_blocking();
+
+// Blocking transmission, only returns upon successful transmit
+inline void transmit_bump_packet_blocking();</code></pre>
+<p class="caption">Radio packet transmission functions</p>
+
+<h2>5.2 Bluetooth</h2>
+                        <p>Bluetooth was used with the Serial Port Profile (SPP) to emulate RS-232 over a serial cable. After connecting an RX and TX pin to the TXD and RXD pins of the JY-MCU chip, the previously written UART code could be used to faciliate wireless communication. As a demonstration, an Android smartphone was used to send movements commands to a Roomba.</p>
+                        <p>The only special concern regarding Bluetooth was pairing. Pairing was accomplished using the Android smartphone's Bluetooth settings. To communicate, the smartphone searches through its paired Bluetooth devices for one matching the device ID of the JY-MCU chip, then transmits and receives through Android libraries.</p>
+                        <img src="images/project5/linking.png" />
+                        <p class="caption">Pairing From the Android Smartphone</p>
+                        
+                        <p>The rigid radio packet structures were discarded in favour of a more simple format, given that Bluetooth communication happens over a serial port. Three functions were created to send Bluetooth data from the base station to the smartphone, listed below. Data formats are an ASCII character indicating the type of data being sent, followed by the appropriate number of data arguments matching the corresponding radio packet format.</p>
+                        
+<pre><code data-language="c">void android_send_position_data(uint8_t roomba_id, int16_t delta_x, 
+                                int16_t delta_y, int16_t alpha) {
+    UART_print(ANDROID_BT_UART_CHANNEL, "p,%d,%d,%d,%d\n", roomba_id, delta_x, delta_y, alpha);
+}
+
+void android_send_sonar_data(uint8_t roomba_id, int16_t theta, int16_t distance) {
+    UART_print(ANDROID_BT_UART_CHANNEL, "s,%d,%d,%d\n", roomba_id, theta, distance);
+}
+
+void android_send_bump_data(uint8_t roomba_id) {
+    UART_print(ANDROID_BT_UART_CHANNEL, "b,%d\n", roomba_id);
+}</code></pre>
+<p class="caption">Bluetooth communication functions</p>
+
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="system">6.0 System Behaviour</h1>
+                        <h2>6.1 Roomba</h2>
+                        <p>The Roomba logic of the mapping system had no precise timing constraints, so periodic tasks were not used. Instead, main logic was implemented in a round robin task, and specialized logic was split between system tasks that were activated by signalling on events. The tasks created are shown below.</p>
+                        
+                       <table class="task-table">
+                            <tr>
+                                <th>Task</th>
+                                <th>Priority</th>
+                            </tr>
+                            <tr>
+                                <td>task_main_logic</td>
+                                <td>Round robin</td>
+                            </tr>
+                            <tr>
+                                <td>task_sonar_sweep</td>
+                                <td>System</td>
+                            </tr>
+                            <tr>
+                                <td>task_read_packet</td>
+                                <td>System</td>
+                            </tr>
+                        </table>
+                        
+                        <p>The <code>task_main_logic</code> task was essentially the main loop of the Roomba, determining when the other tasks ran by signalling events when required.The <code>task_sonar_sweep</code> task completed a sonar sweep (full 180 degrees) and transmitted the sonar packets. The <code>task_read_packet</code> task was used to process incoming radio packets. The main task goes through the process below, signalling other tasks when they are needed.</p>
+                        <img src="images/project5/fsm_roomba.png" style="width: 600px" />
+                        <p class="caption">Finite state machine for a Roomba</p>
+                        
+                        <p>The only changes to the design from project 4 are the distance travelled and the addition of a special case for when the Roomba hits a wall. The distance travelled between measurements was reduced to 50cm from 1m because 1m left gaps between data points, while travelling only 50cm created a more complete map. When the Roomba hits a wall, it transmits a special bump packet to the base station. This is like a sonar packet, but indicates that there is an obstacle directly in front of the Roomba. Data points from bumps are displayed in red on the Android smartphone.</p>
+                        
+                        <p>The number of sonar measurements taken was chosen to be 37 (-90 to 90 degrees in 5 degree increments). Originally, measurements were taken from 90 to -90 degrees in 10 degree increments, but this provided poor resolution when measurements were detecting obstacles far away. Measurements at each position were taken until three identical measurements were taken, then the servo was moved to the next position.</p>
+                        
+                        <h2>6.2 Base Station</h2>
+                        <p>The base station only had one system-level task, <code>receive_task</code>. This task continually listened for new radio packets and processed them accordingly. While the task is somewhat complex, there was no way to decompose it.</p>
+                        
+                        <table class="task-table">
+                            <tr>
+                                <th>Task</th>
+                                <th>Priority</th>
+                            </tr>
+                            <tr>
+                                <td>receive_task</td>
+                                <td>System</td>
+                            </tr>
+                        </table>
+                        
+                        <p>The main task of the base station switched on the type of packet received. It took action according to the process described below.</p>
+                        <img src="images/project5/fsm_basestation.png" style="width: 500px" />
+                        <p class="caption">Finite state machine for the base station</p>
+                        
+                        <p>One variation from the design in project 4 was the handling of bump packets sent from the Roomba when it hits a wall. These were handled like sonar packets, but the obstacle location is implied to be directly in front of the Roomba.</p> 
+                        <p>Another notable change is the algorithm used to determine the Roomba's next heading. The least recently visited algorithm described in project 4 was abandoned because position and sonar data was too erroneous for the algorithm to perform successfully. Once all the sonar readings are received, the base station scans through the readings in order and finds the largest group of readings that did not detect obstacles. The base station selects the middle of this group as the Roomba's next heading. This algorithm was fairly successful, but like least recently visited depended heavily on the sonar readings being accurate, just not to the same degree.</p>
+                        
+                        <h2>6.3 Android Application</h2>
+                        <p>The Android application was written using the Google Android Studio IDE on a Linux environment. To connect to the base station, the Bluetooth API was used to search through the smartphone's paired devices, searching for the pairing name <code>linvor</code> (the default for the JY-MCU device). Once found, a socket was opened to the device using the industry standard <a href="http://developer.android.com/reference/android/bluetooth/BluetoothDevice.html#createRfcommSocketToServiceRecord(java.util.UUID)">SPP UUID</a>. Once created and connected, reading and writing to the Bluetooth device can be performed via Input/OutputStreams interfaces.</p>
+<pre><code data-language="java">public boolean connect() {
+    // All error checking code hidden for simplicity
+    BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+    for (BluetoothDevice dev : adapter.getBondedDevices()) {
+        if (dev.getName().equals(bluetooth_pairing_name)) {
+            btDevice = dev;
+            Log.d("Roomba", "Connected to: " + dev.getAddress());
+            break;
+        }
+    }
+    // Get a Bluetooth Socket to connect with the given BluetoothDevice
+    btSocket = btDevice.createRfcommSocketToServiceRecord(SPP_UUID);
+    btSocket.connect();
+    roombaInputStream = btSocket.getInputStream();
+    // Start an asyncronous task to constantly read from the bluetooth input stream
+    readerTask = new BluetoothReaderTask();
+    readerTask.execute();
+
+    return true;
+}</pre></code>
+<p>To be able to read from the input stream without causing the UI of the application to become non-responsive, a background thread was implemented as an Android AsyncTask to call the blocking <code>inputStream.read()</code> method. Based on a defined ASCII packet structure, the first character received indicates the format of data to follow. To signal the end of an packet the line-feed character <code>'\n'</code> is used. Based on the packet type, the Android application interprets the received packet and processes the data accordingly to update the UI.</p>
+
+<pre><code data-language="java">// The sonar point position, relative to the roomba position and heading
+double pX = Math.sin(Math.toRadians(theta + roomba.getHeading())) * distance;
+double pY = Math.cos(Math.toRadians(theta + roomba.getHeading())) * distance;
+
+floorplan.addSonarDataPoint(new SonarDataPoint(roomba.getX() + (long) pX,
+                                               roomba.getY() + (long) pY));
+</pre></code>
+                    <p class="caption">Adding a new sonar data point</p>
+                    <br>
+
+<pre><code data-language="java">// The sonar point position, relative to the roomba position and heading
+double pX = Math.sin(Math.toRadians(roomba.getHeading())) * Roomba.RADIUS;
+double pY = Math.cos(Math.toRadians(roomba.getHeading())) * Roomba.RADIUS;
+
+floorplan.addBumpDataPoint(new BumpDataPoint(roomba.getX() + (long) pX,
+                                             roomba.getY() + (long) pY));
+</pre></code>
+                    <p class="caption">Adding a new bump data point</p>
+                    <br>
+
+<pre><code data-language="java">public class Roomba {
+    void updatePosition(long deltaX, long deltaY, int heading) {
+        // Update heading
+        this.heading += heading;
+        
+        // Calculate new position
+        this.x += Math.sin(Math.toRadians(this.heading)) * deltaY;
+        this.y += Math.cos(Math.toRadians(this.heading)) * deltaY;
+        this.x += Math.sin(Math.toRadians(this.heading - 90)) * deltaX;
+        this.y += Math.cos(Math.toRadians(this.heading - 90)) * deltaX;
+    }
+}</pre></code>
+                    <p class="caption">Updating a Roomba's position</p>
+                    
+                    <p>The Android app was used to display the map data collected. It would plot data points sent from the base station and move circles representing the Roomba around. The following screenshot shows the app in use.</p>
+                    <img src="images/project5/good_map.png" style="width: 300px" />
+                    <p class="caption">Android App with Map Data</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="error">7.0 Difficulties and Sources of Error</h1>
+                        <p>Each component was tested individually before system testing was conducted. While the project could create maps of some accuracy, the main issues encoutered were due to unreliable sensors. The following sections outline issues and unresolvable problems found during testing.</p>
+                        
+                        <h2>7.1 Radio</h2>
+                        <p>It is safe to say the at least half of the time spent on project 5 was related to the radio. Not only was it the most complicated chip used in terms of wiring, but the driver was also extremely complex.</p>
+                        <p>Through extensive debugging, a defect was found in the radio driver given out to the class. The slave select (SS) pin was never set, causing the SPI module to not generate anything and the radio initialization to hang indefinitely. This bug was reported to the TA, and a fix was issued.</p>
+                        
+                        <p>Another issue was discovered where ACK packets were not sent when packets were transmitted in a specific order. After sending the first heading request packet, the Roomba would receive the heading reply packet and move to its next position. Once there, the Roomba would try to send a position packet, but it would never receive an ACK for it, and the system would hang. The cause of this issue was never found; it was resolved by reordering the order of the radio transmit calls.</p>
+                        
+                        <h2>7.2 Roomba</h2>
+                        <p>While error was expected in the Roomba's wheel sensors, the degree of error was unexpected. The map below shows how the Roomba's heading data quickly loses accuracy over time. The map was generated from a straight hallway.</p>
+                        <img src="images/project5/bad_map.png" style="width: 300px" />
+                        <p class="caption">Straight Hallway Map Showing Position Error</p>
+                        
+                        <p>During normal operation, the Roomba lists slightly to the left. It appears that the wheel sensors cannot or do not take this into account, however, as the Roomba thinks it is positioned directly upwards from the origin but is actually against the left wall. This inaccuracy was compounded over time, eventually producing the warped hallway picture in the map. It is estimated that after 5 sensing cycles, the error in the Roomba's heading is up to 30 degrees. Absolute distance data is a not  much more accurate; after the same number of cycles, Roomba position data is about 1-2m off of the true position.</p>
+                        
+                        <p>Error was expected because of the inaccurate nature of dead reckoning. It was assumed that the Roomba would be able to operate for longer without becoming prohibitively inaccurate, however. To counteract this, the Roomba's wheel sensors should be combined with a number of other sensors to corroborate their readings. An optoelectronic sensor like those in modern laser mice would be a good candidate.</p>
+                        
+                        <h2>7.3 Sonar</h2>
+                        <p>After working fairly well in projects 1 and 2, the sonar was expected to behave fairly regularly. Unfortunately, errors and blatantly inaccurate readings had to be dealt with.</p>
+                        <p>The main problem with the sonar was its wide field of view. When the sonar was mounted on the front of the Roomba, the sonar would detect the ground after a distance of about 1m, so the sonar had to be raised.</p>
+                        <p>When placed beside a straight wall, the sonar readings, when plotted, showed a curved wall instead. The curvature was regular and obvious enough to be noticed. The general shape of objects could still be determine on the map, however.</p>
+                        <p>The sonar also gave completely erroneous readings once in a while, drastically overestimating distances. This was countered by making the sonar take measurements until it had taken three that were identical. Readings of more than 2.5m were also ignored, first because they could be errors or simply the sonar timing out, and second because resolution will be better if the Roomba waits until it is closer to obstacles.</p>
+                        
+                        <h2>7.4 RTOS</h2>
+                        <p>An RTOS was not entirely necessary to run the mapping system, and it may have been altogether easier to implement it as a giant loop as in project 1. Neither the Roomba nor the base station had timing constrains that an RTOS could help enforce, and both would have been perfectly well served by a single main loop. The base station in particular only has one task that loops continually.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="design">8.0 Design Evaluation</h1>
+                        <p>The design work done in project 4 was quite helpful. The design specifications were also very thorough, with the only parts missing being details that required tuning of the actual implementation, such as the number of measurements in a sonar sweep. The thorough design made implementation into the simple transformation of specification into code, as opposed to previous projects, where design and implementation happened somewhat simultaneously. Since design considered the entire system as a whole, interfaces and expected behaviour were already well-defined and available when coding started.</p>
+                        <p>The design was also almost entirely successful. The main reason for design changes was the unexpected degree of inaccuracy from the Roomba wheel sensors and sonar. No hardware changes were necessary, but some slight behavioural modifications were made. Communication protocols in the design were successfully implemented, with the addition of the bump packet mentioned earlier.</p>
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="demo">9.0 Demonstration</h1>
+			            <p>Opening the Android app and connecting to the base station can be seen the following video.</p>
+                        <iframe width="640" height="480" style="width: 640px; margin: 20px auto; display: block;" src="http://www.youtube.com/embed/zSb9Vb6TS3o" frameborder="0" allowfullscreen></iframe>
+                        
+            			<p>A demonstration of the Roomba mapping can be seen in the following video.</p>
+                        <iframe width="640" height="480" style="width: 640px; margin: 20px auto; display: block;" src="http://www.youtube.com/embed/kukqYK0udyE" frameborder="0" allowfullscreen></iframe>
+                        
+                        <p>The map resulting from the above demonstration is shown below.</p>
+                        <img src="images/project5/demo_map.png" style="width: 300px" />
+                    </div>
+                    
+                    <div class="entry">
+                        <h1 id="appendix">10.0 Appendix</h1>
+                        <p><a href="code/project5.tar.gz">Roomba/Base Station Source Code</a> (project5.tar.gz)</p>
+                        <p><a href="code/RoombaMappingApp.tar.gz">Android Application Source Code</a> (RoombaMappingApp.tar.gz)</p>
+                    </div>
+                </div> <!-- end #content -->
+            </div> <!-- end #page -->
+        
+            <div style="clear: both;">
+                &nbsp; 
+            </div>
+        </div> <!-- end #wrapper -->
+        
+        <div id="footer">
+            <p>Andrey Polyakov, Jared Griffis - University of Victoria - 2013</p>
+            <p>Design by <a href="http://www.freecsstemplates.org/" rel="nofollow">FreeCSSTemplates.org</a>.</p>
+        </div><!-- end #footer -->
+        
+        <script src="js/rainbow.min.js"></script>
+        <script src="js/generic.js"></script>
+        <script src="js/c.js"></script>
+        <script src="js/asm.js"></script>
+        <script src="js/avr-asm.js"></script>
+    </body>
+</html>
